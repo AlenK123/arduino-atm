@@ -13,7 +13,8 @@ void rotate_servo() {
   for (int i = 0; i < 181; i++) {
     S.write(i);
     delay(10);
-  } 
+  }
+  S.write(0); 
 }
 
 void printToLcd(point pos, size_t fg, size_t bg, size_t fs, char * msg){
