@@ -2,9 +2,19 @@
 #include "TFT9341.h"
 #include "touch.h"
 #include "Button.h"
-
+#include <Servo.h>
 #include <string.h>
 
+void rotate_servo() {
+  Servo S;
+  lcd.clrscr(BLACK);
+  S.attach(3);
+  S.write(0);
+  for (int i = 0; i < 181; i++) {
+    S.write(i);
+    delay(10);
+  } 
+}
 
 void printToLcd(point pos, size_t fg, size_t bg, size_t fs, char * msg){
 	lcd.gotoxy(pos.x,pos.y);
@@ -40,7 +50,7 @@ void button_screen(char * code) {
 
 
 void button_screen_touch(Button btn_list[4][3], char * code){
-	static byte pos = 0;
+	byte pos = 0;
 	printToLcd(point(190, 60), WHITE, BLACK, 3, code);
 	while (pos < 4) {
   	lcdtouch.readxy();
@@ -60,7 +70,7 @@ void button_screen_touch(Button btn_list[4][3], char * code){
 }
 
 
-byte option_screen_touch(Button * btn_list) {
+byte wd_screen_touch(Button * btn_list) {
   while (true) {
     lcdtouch.readxy();
     size_t x = 320 - lcdtouch.readx();
@@ -74,7 +84,7 @@ byte option_screen_touch(Button * btn_list) {
   }
 }
 
-byte wd_option_screen(size_t balance) {
+byte wd_screen(size_t balance) {
 	lcd.clrscr(BLACK);
 	char msg[25];
 	sprintf(msg, "withdraw? Balance: %d", balance);
@@ -91,7 +101,7 @@ byte wd_option_screen(size_t balance) {
     btn_list[i] = opt_btn;
   }
 
-  byte sum =  option_screen_touch(btn_list);
+  byte sum =  wd_screen_touch(btn_list);
   if ((size_t)sum > balance) {
     printToLcd(point(120, 60), WHITE, RED, 3, (char*)"You can\'t");
     printToLcd(point(120, 85), WHITE, RED, 3, (char*)"withdraw ");
@@ -101,23 +111,66 @@ byte wd_option_screen(size_t balance) {
     delay(2000);
     return 0;
   }
+  
   return sum;
 }
 
+bool option_screen(char * _name) { 
+
+  byte n = strlen("Welcome! ") + strlen(_name) + 1;
+  char * _welcome = new char[(size_t)n];
+  sprintf(_welcome, "Welcome %s!", _name);
+  
+  lcd.clrscr(BLACK);
+  printToLcd(point(0, 10), WHITE, BLACK, 3, _welcome);
+  delete[] _welcome;
+  Button dip_btn(point(40, 60), 235, 50, 7, BLUE, 3, (char*)"View details");
+  dip_btn.draw();
+  Button wd_btn(point(40, 120), 235, 50, 7, BLUE, 3, (char*)"  Withdraw");
+  wd_btn.draw();
+
+  while (true) { 
+    lcdtouch.readxy();
+    size_t x = 320 - lcdtouch.readx();
+    size_t y = 240 - lcdtouch.ready();
+    
+    if (dip_btn.pressed(x, y)) {
+      return (bool)0;
+    }
+    else if (wd_btn.pressed(x, y)) {
+      return (bool)1;
+    }
+  }
+}
+
+void get_RFID(char * RFID) {
+  delay(1000);
+  return;
+}
+
+void welcome_screen(char * RFID) {
+  lcd.clrscr(BLACK);
+  printToLcd(point(15, 20), WHITE, BLACK, 3, (char*)"Plese Enter Your");
+  printToLcd(point(15, 50), WHITE, BLACK, 3, (char*)"Card");
+  get_RFID(RFID);
+}
 
 void setup() {	
 	Serial.begin(9600);
 	lcd.begin();
 	lcdtouch.begin();
 	lcd.clrscr (BLACK);
-	char code[5] = "____";
-	//Serial.println(wd_option_screen(50));
-  /*
-	button_screen(code);
-  Serial.print(code);
-  */
 }
 
 
 void loop() {
+  char code[5] = "____";
+  char RFID[12] = "";
+  byte sum = 0;
+  welcome_screen(RFID);
+  button_screen(code);
+  option_screen((char*)"Alen");
+  if ((sum = wd_screen(100)) != 0) {
+    rotate_servo();
+  }
 }
