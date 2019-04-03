@@ -1,33 +1,31 @@
 #pragma once
-
 #include <string.h>
 #include "User.h"
 
 #define CLD 3               // Card status pin 
 #define RDT 4               // Data pin
 
-typedef unsigned char byte;
-void attachInterrupt(...);
-int digitalRead(...);
-#define CHANGE 1
-#define FALLING 2
-#define LOW 0
-
 class MagCard {
 private:
+    int charCount;
     bool global_bit;
     int buffer_counter;
     char buffer[400];
     char data[40];
 
 public:
+         
+    void cb() {
+        global_bit = !global_bit;
+    }
+    void wr() {
+        buffer[buffer_counter++] = global_bit;
+    }
+    
     MagCard() {
+        Serial.begin(4800);
         this->global_bit = false;
         this->buffer_counter = 0;
-        /* The interrupts are key to reliable reading of the clock and data feed */
-        attachInterrupt(0, [this]() -> void { global_bit = !global_bit; } , CHANGE); // flips the global bit
-        attachInterrupt(1, [this]() -> void { buffer[buffer_counter++] = global_bit; }, FALLING); // Writes the bit to the buffer
-    
     }
 
     int getStartSentinal() {
@@ -65,7 +63,6 @@ public:
     void decode() {
         int sentinal = getStartSentinal();
         int thisByte[5];
-        int charCount = 0;
         
         for (int j = sentinal, i = 0; j < 400 - sentinal; j++) {
             thisByte[i] = buffer[j];
@@ -78,26 +75,32 @@ public:
                 this->data[charCount++] = this->decodeByte(thisByte);
             }
         }
+        Serial.print("Stripe_Data:");
+        for (int i = 0; i < this->charCount; i++) {
+            Serial.print(this->data[i]);
+        }
+        Serial.println("");
     }
 
-    user * find_rfid(user ** users, char * rfid, size_t n) {
+    user::user * find_rfid(user::user ** users, char * rfid, size_t n) {
         for (int i = 0; i < n; i++) {
-            if (strstr(rfid, users[i]->get_rfid()) != nullptr) {
+            if (strstr(data, users[i]->get_rfid()) != nullptr) {
                 return users[i];
             }
         }
         return nullptr;
     } 
 
-    user * load_rfid(user ** users, char * rfid, size_t n) {
-        user * u = nullptr;
+    user::user * load_rfid(user::user ** users, char * rfid, size_t n) {
+        user::user * u = nullptr;
         while ((u = find_rfid(users, rfid, n)) == nullptr) {
             while(digitalRead(CLD) == LOW) {
                 decode();
                 buffer_counter = 0;
+                for (int i = 0; i < 40; i++) this->data[i] = '\n';
+                this->charCount = 0;
             }
         }
         return u;
     }
-
-}
+};
