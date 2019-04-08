@@ -1,28 +1,26 @@
-#include "spiUnit.h"
+ #include "spiUnit.h"
 #include "TFT9341.h"
 #include "touch.h"
 #include "Button.h"
 #include <Servo.h>
 #include <string.h>
 
+#define CLD 3                           // Card status pin
+#define RDT 4                           // Data pin
 
-#define CLD 3               // Card status pin
-#define RDT 4
-                            
-                           // Data pin
-int reading = 2;            // Reading status
+int reading = 2;                        // Reading status
 volatile int * buffer = new int[400];   // Buffer for data
-volatile int i = 0;         // Buffer counter
-volatile int bit = 0;       // global bit
-char cardData[40];          // holds card info
-int charCount = 0;          // counter for info
+volatile int i = 0;                     // Buffer counter
+volatile int bit = 0;                   // global bit
+char * cardData = new char[40];         // holds card info
+int charCount = 0;                      // counter for info
 
-char * users_data[3] = {";;42", ";382", ";111"};
-char * users[3] = {"Noa", "Alen", "Hadar"};
-char * users_PIN[3] = {"1234", "2341", "2332"};
+char * users_data[3] = {(char*)";;42", (char*)";382", (char*)";111"};
+char * users[3] = {(char*)"Noa", (char*)"Alen", (char*)"Hadar"};
+char * users_PIN[3] = {(char*)"1234", (char*)"2341", (char*)"2332"};
+unsigned short user_balance[3] = { 500, 250, 200 };
 
 void setup() {
-
     pinMode(13,OUTPUT);
     /* The interrupts are key to reliable reading of the clock and data feed */
     attachInterrupt(0, []() -> void { bit = !bit; }, CHANGE);
@@ -37,7 +35,11 @@ void loop(){
     char code[5] = "____";
     byte sum = 0;
     byte index = get_user();
+    bool ex = false;
+
     delete[] buffer;
+    delete[] cardData;
+    
     button_screen(code);
     while (strcmp(code, users_PIN[index]) != 0) {
       strcpy(code, "____");
@@ -46,11 +48,27 @@ void loop(){
       delay(1000);
       button_screen(code);
     }
-    
-    if (option_screen(users[index]) == 1) {
-      wd_screen(100);
+    while (!ex) {
+        switch ((byte)option_screen(users[index])) {
+        case 0:
+            details_screen(index);
+            break;
+        case 1:
+            while ((sum = wd_screen(user_balance[index])) == 0);
+            user_balance[index] -= sum;
+            /* activate device */
+            digitalWrite(13, HIGH);
+            delay(500);
+            exit_screen();
+            ex = true;
+            break;
+        case 2:
+            ex = true;
+            break;
+        default:
+            break;
+        }
     }
-    //digitalWrite(13, HIGH);
 }
 
 void printToLcd(point pos, size_t fg, size_t bg, size_t fs, char * msg){
@@ -93,7 +111,7 @@ void button_screen_touch(Button btn_list[4][3], char * code){
     lcdtouch.readxy();
     size_t x = 320 - lcdtouch.readx();
     size_t y = 240 - lcdtouch.ready();
-    delay(120); 
+    delay(140); 
     for (byte i = 0; i < 4; i++){
       for (byte j = 0; j < 3; j++){
           if (btn_list[i][j].pressed(x, y)) {
@@ -153,7 +171,7 @@ byte wd_screen(size_t balance) {
   return sum;
 }
 
-bool option_screen(char * _name) { 
+byte option_screen(char * _name) { 
 
   byte n = strlen("Welcome! ") + strlen(_name) + 1;
   char * _welcome = new char[(size_t)n];
@@ -162,10 +180,12 @@ bool option_screen(char * _name) {
   lcd.clrscr(BLACK);
   printToLcd(point(0, 10), WHITE, BLACK, 3, _welcome);
   delete[] _welcome;
-  Button det_btn(point(40, 60), 235, 50, 7, BLUE, 3, (char*)"View details");
+  Button det_btn(point(40, 55), 235, 50, 7, BLUE, 3, (char*)"View details");
   det_btn.draw();
-  Button wd_btn(point(40, 120), 235, 50, 7, BLUE, 3, (char*)"  Withdraw");
+  Button wd_btn(point(40, 110), 235, 50, 7, BLUE, 3, (char*)"  Withdraw");
   wd_btn.draw();
+  Button ex_btn(point(40, 165), 235, 50, 7, BLUE, 3, (char*)"   exit");
+  ex_btn.draw();
 
   while (true) { 
     lcdtouch.readxy();
@@ -173,10 +193,13 @@ bool option_screen(char * _name) {
     size_t y = 240 - lcdtouch.ready();
     
     if (det_btn.pressed(x, y)) {
-      return (bool)0;
+      return 0;
     }
     else if (wd_btn.pressed(x, y)) {
-      return (bool)1;
+      return 1;
+    }
+    else if (ex_btn.pressed(x, y)) {
+      return 2;
     }
   }
 }
@@ -187,7 +210,37 @@ void welcome_screen(void) {
   printToLcd(point(15, 50), WHITE, BLACK, 3, (char*)"Card");
 }
 
+void exit_screen(void) {
+  lcd.clrscr(BLUE);
+  printToLcd(point(15, 20), WHITE, BLUE, 4, (char*)"Thank You");
+  printToLcd(point(15, 50), WHITE, BLUE, 4, (char*)"Goodbye");
+  delay(1000);
+}
 
+void details_screen(byte index) {
+  char balance[] = "4294967296";
+  sprintf(balance, "%d", user_balance[index]);
+  Button back_btn(point(10, 140), 100, 40, 5, BLUE,  3, (char*)"Back");
+  lcd.clrscr(BLACK);
+  printToLcd(point(15, 20), WHITE, BLACK, 3, (char*)"Name: ");
+  printToLcd(point(110, 20), WHITE, BLACK, 3, users[index]);
+  printToLcd(point(15, 50), WHITE, BLACK, 3, (char*)"balance: ");
+  printToLcd(point(143, 50), WHITE, BLACK, 3, balance);
+  printToLcd(point(15, 90), WHITE, BLACK, 2, (char*)"Project by Hadar");
+  printToLcd(point(23, 120), WHITE, BLACK, 2, (char*)"Amar and Alen Peer");
+  back_btn.draw();
+  while (true) { 
+    lcdtouch.readxy();
+    size_t x = 320 - lcdtouch.readx();
+    size_t y = 240 - lcdtouch.ready();  
+    if (back_btn.pressed(x, y)) return;
+  }
+  return;
+}
+
+/*
+ * The part of the database, needs to be changed;
+ */
 
 int search_db() {
     for (byte i = 0; i < 3; i++) {
@@ -216,7 +269,11 @@ int get_user() {
   }
 }
  
-// prints the buffer
+
+/* 
+ *  This is the part that controls the magnetic card reader part of the  project
+ */
+
 void printBuffer(){
   int j;
   for (j = 0; j < 200; j = j + 1) {
