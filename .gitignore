@@ -3,7 +3,7 @@
 
 # Shitty VSCode stuff
 *.json
-
+.vscode/*
 # Compiled Object files
 *.slo
 *.lo
