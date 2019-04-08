@@ -11,19 +11,15 @@
                             
                            // Data pin
 int reading = 2;            // Reading status
-volatile int buffer[400];   // Buffer for data
+volatile int * buffer = new int[400];   // Buffer for data
 volatile int i = 0;         // Buffer counter
 volatile int bit = 0;       // global bit
 char cardData[40];          // holds card info
 int charCount = 0;          // counter for info
-int DEBUG = 0;
 
 char * users_data[3] = {";;42", ";382", ";111"};
 char * users[3] = {"Noa", "Alen", "Hadar"};
 char * users_PIN[3] = {"1234", "2341", "2332"};
-bool flag = false;
-
-
 
 void setup() {
 
@@ -35,17 +31,13 @@ void setup() {
     Serial.begin(4800);
     lcd.begin();
     lcdtouch.begin();
-    lcd.clrscr(BLUE);
 }
  
 void loop(){
     char code[5] = "____";
     byte sum = 0;
-    int index = get_user();
-    byte ch = 0;
-    char * user = users[index]; 
-    Serial.println(user);
-
+    byte index = get_user();
+    delete[] buffer;
     button_screen(code);
     while (strcmp(code, users_PIN[index]) != 0) {
       strcpy(code, "____");
@@ -55,10 +47,8 @@ void loop(){
       button_screen(code);
     }
     
-    ch = option_screen(user);
-
-    if (ch == 1) {
-      //wd_screen(100);
+    if (option_screen(users[index]) == 1) {
+      wd_screen(100);
     }
     //digitalWrite(13, HIGH);
 }
@@ -133,13 +123,14 @@ byte wd_screen_touch(Button * btn_list) {
 
 byte wd_screen(size_t balance) {
   lcd.clrscr(BLACK);
-  char msg[25];
-  sprintf(msg, "withdraw? Balance: %d", balance);
+  char msg[4];
+  sprintf(msg, "%d", balance);
   char messages[3][5] = {"50$", "100$", "200$"};
   byte starty = 60;
   Button btn_list[3];
   printToLcd(point(0, 10), WHITE, BLACK, 2, (char*)"How much would like to");
-  printToLcd(point(0, 30), WHITE, BLACK, 2, msg);
+  printToLcd(point(0, 30), WHITE, BLACK, 2, (char*)"withdraw? Balance: ");
+  printToLcd(point(220, 30), WHITE, BLACK, 2, msg);
   
   for (byte i = 0; i < 3; i ++) {
     Button opt_btn(point(10, starty), 100, 40, 5, BLUE,  3, messages[i]);
