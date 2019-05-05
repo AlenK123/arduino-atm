@@ -20,18 +20,23 @@ char * users[3] = {(char*)"Noa", (char*)"Alen", (char*)"Hadar"};
 char * users_PIN[3] = {(char*)"1234", (char*)"2341", (char*)"2332"};
 unsigned short user_balance[3] = { 500, 250, 200 };
 
+
+
 void setup() {
     pinMode(13,OUTPUT);
     /* The interrupts are key to reliable reading of the clock and data feed */
     attachInterrupt(0, []() -> void { bit = !bit; }, CHANGE);
     attachInterrupt(1, []() -> void { buffer[i++] = bit; }, FALLING);
 
+    
+     
     Serial.begin(4800);
     lcd.begin();
     lcdtouch.begin();
 }
  
 void loop(){
+    lcd.clrscr(BLACK);
     char code[5] = "____";
     byte sum = 0;
     byte index = get_user();
@@ -51,14 +56,19 @@ void loop(){
     while (!ex) {
         switch ((byte)option_screen(users[index])) {
         case 0:
+            lcd.clrscr(BLACK);
             details_screen(index);
             break;
         case 1:
+            lcd.clrscr(BLACK);
             while ((sum = wd_screen(user_balance[index])) == 0);
             user_balance[index] -= sum;
             /* activate device */
-            digitalWrite(13, HIGH);
-            delay(500);
+            Servo * ser = new Servo;
+            ser->attach(9);
+            ser->write(180);
+            ser->write(0);
+            delete ser;
             exit_screen();
             ex = true;
             break;
