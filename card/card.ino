@@ -1,4 +1,4 @@
- #include "spiUnit.h"
+#include "spiUnit.h"
 #include "TFT9341.h"
 #include "touch.h"
 #include "Button.h"
@@ -9,12 +9,14 @@
 #define RDT 4                           // Data pin
 
 int reading = 2;                        // Reading status
-volatile int * buffer = new int[400];   // Buffer for data
+volatile int * buffer;                  // Buffer for data
 volatile int i = 0;                     // Buffer counter
 volatile int bit = 0;                   // global bit
-char * cardData = new char[40];         // holds card info
+char * cardData;                        // holds card info
 int charCount = 0;                      // counter for info
 
+
+/* primitive database */
 char * users_data[3] = {(char*)";;42", (char*)";382", (char*)";111"};
 char * users[3] = {(char*)"Noa", (char*)"Alen", (char*)"Hadar"};
 char * users_PIN[3] = {(char*)"1234", (char*)"2341", (char*)"2332"};
@@ -23,13 +25,11 @@ unsigned short user_balance[3] = { 500, 250, 200 };
 
 
 void setup() {
-    pinMode(13,OUTPUT);
+    pinMode(9,OUTPUT);
     /* The interrupts are key to reliable reading of the clock and data feed */
     attachInterrupt(0, []() -> void { bit = !bit; }, CHANGE);
     attachInterrupt(1, []() -> void { buffer[i++] = bit; }, FALLING);
 
-    
-     
     Serial.begin(4800);
     lcd.begin();
     lcdtouch.begin();
@@ -44,7 +44,8 @@ void loop(){
 
     delete[] buffer;
     delete[] cardData;
-    
+
+    /* Validating the user with the pin code */
     button_screen(code);
     while (strcmp(code, users_PIN[index]) != 0) {
       strcpy(code, "____");
@@ -53,6 +54,8 @@ void loop(){
       delay(1000);
       button_screen(code);
     }
+
+    /* taking option paths */
     while (!ex) {
         switch ((byte)option_screen(users[index])) {
         case 0:
@@ -63,12 +66,10 @@ void loop(){
             lcd.clrscr(BLACK);
             while ((sum = wd_screen(user_balance[index])) == 0);
             user_balance[index] -= sum;
-            /* activate device */
-            Servo * ser = new Servo;
-            ser->attach(9);
-            ser->write(180);
-            ser->write(0);
-            delete ser;
+            /* activate device */        
+            digitalWrite(9, HIGH);
+            delay(100);
+            digitalWrite(9, LOW);
             exit_screen();
             ex = true;
             break;
@@ -88,6 +89,8 @@ void printToLcd(point pos, size_t fg, size_t bg, size_t fs, char * msg){
   lcd.print(msg);
 }
 
+
+/* draws a matrix of buttons from the class Button to form a dial */
 void button_screen(char * code) {
   lcd.clrscr(BLACK);
 
@@ -113,7 +116,7 @@ void button_screen(char * code) {
   
 }
 
-
+/* touch part of the matirx function */
 void button_screen_touch(Button btn_list[4][3], char * code){
   byte pos = 0;
   printToLcd(point(190, 60), WHITE, BLACK, 3, code);
@@ -134,7 +137,7 @@ void button_screen_touch(Button btn_list[4][3], char * code){
   }
 }
 
-
+/* withdraw screen touch hendler */
 byte wd_screen_touch(Button * btn_list) {
   while (true) {
     lcdtouch.readxy();
@@ -149,6 +152,7 @@ byte wd_screen_touch(Button * btn_list) {
   }
 }
 
+/* withdraw money option screen */
 byte wd_screen(size_t balance) {
   lcd.clrscr(BLACK);
   char msg[4];
@@ -181,6 +185,7 @@ byte wd_screen(size_t balance) {
   return sum;
 }
 
+/* option screen display */
 byte option_screen(char * _name) { 
 
   byte n = strlen("Welcome! ") + strlen(_name) + 1;
@@ -248,10 +253,7 @@ void details_screen(byte index) {
   return;
 }
 
-/*
- * The part of the database, needs to be changed;
- */
-
+/* search the user in the primitive database */
 int search_db() {
     for (byte i = 0; i < 3; i++) {
         if (strstr(cardData, users_data[i]) != NULL) {
@@ -261,9 +263,12 @@ int search_db() {
     return -1;
 }
 
+/* matches the mag stripe data to a user */
 int get_user() {
   int index = 0;
   welcome_screen();
+  buffer = new int[400];
+  cardData = new char[40];
   while (1) {   
       while(digitalRead(CLD) == LOW){
         decode(&index);
@@ -286,7 +291,7 @@ int get_user() {
 
 void printBuffer(){
   int j;
-  for (j = 0; j < 200; j = j + 1) {
+  for (j = 0; j < 200; j++) {
     Serial.println(buffer[j]);
   }
 }
@@ -296,7 +301,12 @@ int getStartSentinal(){
   int queue[5];
   int sentinal = 0;
  
-  for (j = 0; j < 400; j = j + 1) {
+  for (j = 0; j < 400; j++) {
+    /* 
+     * the data of the magnetic stripe reader 
+     * always comes in the form of 5 bit segments
+     * in each iteration we add a bit to our data chunck to be parsed
+     */
     queue[4] = queue[3];
     queue[3] = queue[2];
     queue[2] = queue[1];
@@ -317,12 +327,13 @@ void decode(int * _index) {
   int i = 0;
   int k = 0;
   int thisByte[5];
-  for (j = sentinal; j < 400 - sentinal; j = j + 1) {
+  for (j = sentinal; j < 400 - sentinal; j++) {
     thisByte[i] = buffer[j];
     i++;
     if (i % 5 == 0) {
       i = 0;
-      if ((thisByte[0] | thisByte[1] | thisByte[2] | thisByte[3] | thisByte[4]) == 0) {
+      /* checking if the byte is not nil */
+      if ((thisByte[0] | thisByte[1] | thisByte[2] | thisByte[3] | thisByte[4]) == 0) { 
         break;
       }
       cardData[charCount++] = decodeByte(thisByte);
@@ -338,9 +349,8 @@ void decode(int * _index) {
 
 
   int index = 0;
-  if ((index = search_db()) != -1) {
-      //return index;
-      Serial.println("#########################");
+  /* No ERR */
+  if ((index = search_db()) != -1) { 
       *_index = index;
       return;
       Serial.println(index);
@@ -348,6 +358,7 @@ void decode(int * _index) {
   *_index = -1;
 }
 
+/* parsing the byte with cool programming */
 char decodeByte(int thisByte[]) {
       char dict[16] = {'0', '1', '2', '3', '4', '5', '6', '7',
                       '8', '9', ':', ';', '<', '=', '>', '?' };
